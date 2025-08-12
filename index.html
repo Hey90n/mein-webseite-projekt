@@ -1,98 +1,121 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Snake Game</title>
-    <style>
-        body {
-            background-color: #111;
-            color: white;
-            text-align: center;
-            font-family: sans-serif;
-        }
-        canvas {
-            background-color: black;
-            display: block;
-            margin: 20px auto;
-            border: 2px solid white;
-        }
-    </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Red Button Gamble</title>
+  <style>
+    /* Page layout: pure white background, center content */
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    /* The single red 3D-style button */
+    #redButton {
+      width: clamp(140px, 22vmin, 240px);
+      height: clamp(140px, 22vmin, 240px);
+      border: none;
+      border-radius: 50%;
+      color: #ffffff;
+      font-size: clamp(28px, 6vmin, 56px);
+      font-weight: 700;
+      cursor: pointer;
+      user-select: none;
+      /* 3D effect via gradient + layered shadows */
+      background: radial-gradient(circle at 30% 30%, #ff6b6b 0%, #ff3b3b 40%, #e31616 70%, #b70f0f 100%);
+      box-shadow:
+        0 18px 0 0 rgba(128, 0, 0, 0.25) inset,  /* inner rim */
+        0 -10px 18px rgba(255, 255, 255, 0.3) inset, /* top sheen */
+        0 12px 24px rgba(183, 15, 15, 0.45); /* drop shadow */
+      transition: transform 80ms ease, box-shadow 80ms ease, filter 80ms ease;
+    }
+
+    #redButton:active {
+      transform: translateY(2px);
+      box-shadow:
+        0 12px 0 0 rgba(128, 0, 0, 0.25) inset,
+        0 -8px 14px rgba(255, 255, 255, 0.25) inset,
+        0 6px 14px rgba(183, 15, 15, 0.4);
+      filter: brightness(0.98);
+    }
+
+    /* Ensure the button label is neatly centered */
+    #redButton span {
+      display: inline-block;
+      line-height: 1;
+      transform: translateY(2px); /* minor optical centering */
+    }
+  </style>
 </head>
 <body>
-    <h1>🐍 Snake Game</h1>
-    <p>Steuerung: Pfeiltasten</p>
-    <canvas id="gameCanvas" width="400" height="400"></canvas>
-    <script>
-        const canvas = document.getElementById("gameCanvas");
-        const ctx = canvas.getContext("2d");
-        const box = 20;
-        let snake = [{ x: 9 * box, y: 9 * box }];
-        let direction = "RIGHT";
-        let food = {
-            x: Math.floor(Math.random() * 20) * box,
-            y: Math.floor(Math.random() * 20) * box
-        };
-        let score = 0;
+  <!-- Only element on the page: the red button with a numeric label -->
+  <button id="redButton" aria-label="Increment button">
+    <span id="label">0</span>
+  </button>
 
-        document.addEventListener("keydown", event => {
-            if (event.key === "ArrowLeft" && direction !== "RIGHT") direction = "LEFT";
-            else if (event.key === "ArrowUp" && direction !== "DOWN") direction = "UP";
-            else if (event.key === "ArrowRight" && direction !== "LEFT") direction = "RIGHT";
-            else if (event.key === "ArrowDown" && direction !== "UP") direction = "DOWN";
-        });
+  <script>
+    // --- Game state ---
+    let score = 0;          // displayed number
+    let resetChance = 0;    // percent (0–100)
 
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // --- DOM references ---
+    const btn = document.getElementById('redButton');
+    const label = document.getElementById('label');
 
-            ctx.fillStyle = "red";
-            ctx.fillRect(food.x, food.y, box, box);
+    // --- Audio setup (local file in the same directory) ---
+    const clickSound = new Audio('click.mp3');
+    clickSound.preload = 'auto';
 
-            for (let i = 0; i < snake.length; i++) {
-                ctx.fillStyle = i === 0 ? "lime" : "green";
-                ctx.fillRect(snake[i].x, snake[i].y, box, box);
-            }
+    // --- Utility / game functions ---
+    function updateDisplay() {
+      // Update the single number shown on the button
+      label.textContent = String(score);
+    }
 
-            ctx.fillStyle = "white";
-            ctx.fillText("Score: " + score, box, canvas.height - 10);
+    function playClickSound() {
+      // Always play a short click on every press
+      try {
+        clickSound.currentTime = 0;
+        const p = clickSound.play();
+        // Some browsers return a promise (might reject if blocked); ignore errors silently
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+      } catch (_) {}
+    }
 
-            let headX = snake[0].x;
-            let headY = snake[0].y;
+    function incrementScore() {
+      // a) Increase displayed number by 1
+      score += 1;
+      // b) Increase reset chance by 1% per click (cap at 100)
+      resetChance = Math.min(100, resetChance + 1);
+    }
 
-            if (direction === "LEFT") headX -= box;
-            else if (direction === "UP") headY -= box;
-            else if (direction === "RIGHT") headX += box;
-            else if (direction === "DOWN") headY += box;
+    function checkReset() {
+      // c) Roll a random number in [0, 100) and reset if roll <= resetChance
+      const roll = Math.random() * 100;
+      if (roll <= resetChance) {
+        score = 0;
+        resetChance = 0;
+      }
+    }
 
-            if (headX === food.x && headY === food.y) {
-                score++;
-                food = {
-                    x: Math.floor(Math.random() * 20) * box,
-                    y: Math.floor(Math.random() * 20) * box
-                };
-            } else {
-                snake.pop();
-            }
+    // --- Wire up button interaction ---
+    btn.addEventListener('click', () => {
+      playClickSound();        // play sound on every click
+      incrementScore();        // update score & chance
+      checkReset();            // possibly reset based on chance
+      updateDisplay();         // reflect final value after this click
+    });
 
-            let newHead = { x: headX, y: headY };
-
-            if (
-                headX < 0 || headX >= canvas.width ||
-                headY < 0 || headY >= canvas.height ||
-                collision(newHead, snake)
-            ) {
-                clearInterval(game);
-                alert("Game Over! Score: " + score);
-                return;
-            }
-
-            snake.unshift(newHead);
-        }
-
-        function collision(head, array) {
-            return array.some(segment => segment.x === head.x && segment.y === head.y);
-        }
-
-        const game = setInterval(draw, 150);
-    </script>
+    // Initialize display (starts at 0 by design)
+    updateDisplay();
+  </script>
 </body>
 </html>
